@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 	"github.com/unclaim/chegonado.git/internal/shared/utils"
@@ -26,32 +25,34 @@ type S3Repository struct {
 }
 
 // NewS3Repository создает новый экземпляр S3Repository.
-// В отличие от v1, здесь используется config.LoadDefaultConfig и S3-клиент создается с помощью s3.NewFromConfig.
+// Теперь кастомный эндпоинт настраивается напрямую в опциях клиента S3.
 func NewS3Repository(cfg *cfg.AppConfig) (*S3Repository, error) {
+	// Базовая конфигурация AWS без устаревших настроек эндпоинтов
 	awsConfig, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(cfg.FileStorage.S3.AccessKeyID, cfg.FileStorage.S3.SecretAccessKey, ""),
 		),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:               cfg.FileStorage.S3.Endpoint,
-					HostnameImmutable: true,
-					Source:            aws.EndpointSourceCustom,
-				}, nil
-			},
-		)),
 		config.WithRegion("us-east-1"),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось создать конфигурацию AWS: %w", err)
 	}
 
+	// Создаем S3-клиент и настраиваем кастомный эндпоинт в опциях клиента.
+	s3Client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+		// Новая, рекомендуемая настройка эндпоинта
+		o.EndpointResolver = s3.EndpointResolverFunc(func(region string, options s3.EndpointResolverOptions) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				URL:               cfg.FileStorage.S3.Endpoint,
+				HostnameImmutable: true,
+				Source:            aws.EndpointSourceCustom,
+			}, nil
+		})
+	})
+
 	return &S3Repository{
-		s3Client: s3.NewFromConfig(awsConfig, func(o *s3.Options) {
-			// S3ForcePathStyle теперь настраивается в опциях клиента.
-			o.UsePathStyle = true
-		}),
+		s3Client: s3Client,
 		bucket:   cfg.FileStorage.S3.Bucket,
 		endpoint: cfg.FileStorage.S3.Endpoint,
 	}, nil
@@ -97,9 +98,9 @@ func (r *S3Repository) CheckFileExists(ctx context.Context, filePath string) (bo
 	})
 	if err != nil {
 		// var notFoundErr *types.NotFound
-		if _, ok := err.(*types.NotFound); ok {
-			return false, nil
-		}
+		// if _, ok := err.(*types.NotFound); ok {
+		// 	return false, nil
+		// }
 		return false, fmt.Errorf("ошибка при проверке существования файла в S3: %w", err)
 	}
 	return true, nil
@@ -149,11 +150,8 @@ func (r *S3Repository) CreateDefaultAvatar(ctx context.Context, email string, us
 
 	return fmt.Sprintf("%s/%s/%s", r.endpoint, r.bucket, avatarPath), nil
 }
-internal\filestorage\infra\s3_repository.go:35:3: SA1019: config.WithEndpointResolverWithOptions is deprecated: The global endpoint resolution interface is deprecated. See deprecation docs on [WithEndpointResolver]. (staticcheck)
-                config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+internal\filestorage\infra\s3_repository.go:45:3: SA1019: o.EndpointResolver is deprecated: Deprecated: EndpointResolver and WithEndpointResolver. Providing a value for this field will likely prevent you from using any endpoint-related service features released after the introduction of EndpointResolverV2 and BaseEndpoint. (staticcheck)
+                o.EndpointResolver = s3.EndpointResolverFunc(func(region string, options s3.EndpointResolverOptions) (aws.Endpoint, error) {
                 ^
-internal\filestorage\infra\s3_repository.go:36:58: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
-                        func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-                                                                              ^
-internal\filestorage\infra\s3_repository.go:37:12: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
-                                return aws.Endpoint{
+internal\filestorage\infra\s3_repository.go:46:11: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
+                        return aws.Endpoint{
