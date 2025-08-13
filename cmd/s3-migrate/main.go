@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -77,10 +78,10 @@ func uploadFileToS3(ctx context.Context, client *s3.Client, bucket, filePath str
 		return "", fmt.Errorf("не удалось загрузить файл в S3: %w", err)
 	}
 
-	// NOTE: Endpoint is not directly available on the client in v2, so we need to pass it from config.
-	// We'll return the URL based on the endpoint and bucket from the config.
-	// You might need to adjust this depending on your S3 provider's URL format.
-	return fmt.Sprintf("%s/%s/%s", client.Options().BaseEndpoint, bucket, filePath), nil
+	// ИСПРАВЛЕНИЕ: Используем aws.ToString() для безопасного получения строкового значения
+	// из указателя *string, который возвращает client.Options().BaseEndpoint.
+	endpoint := aws.ToString(client.Options().BaseEndpoint)
+	return fmt.Sprintf("%s/%s/%s", endpoint, bucket, filePath), nil
 }
 
 // migrateUserAvatars migrates one user's avatars.
@@ -199,9 +200,3 @@ func main() {
 
 	log.Println("Миграция завершена.")
 }
-
-
-Выполняет, но не корректно 
-2025/08/13 11:56:45 Успешно перенесен аватар пользователя 99: ..\..\uploads\users\99\avatars\99.jpg -> %!s(*string=0xc0002820d0)/unclaimeds/users/99/avatars/99.jpg
-
-не корректно отображается %!s(*string=0xc0002820d0)
