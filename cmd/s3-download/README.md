@@ -1,144 +1,99 @@
-Отличная идея! Наличие утилиты для переноса данных из S3 обратно в локальное хранилище — это очень полезно. Она может пригодиться для локальной разработки, создания резервных копий или миграции на другую систему.
-Я подготовил полный код для такой утилиты. Вы можете сохранить её в отдельный файл, например, cmd/s3-download/main.go, и запускать по необходимости.
-Описание решения
-Подключение к S3: Утилита подключится к вашему S3-бакету, используя те же параметры, что и основное приложение.
-Получение списка файлов: Программа запросит у S3 список всех объектов (файлов) в вашем бакете.
-Создание локальной структуры: Для каждого файла из S3 будет создана соответствующая папка на локальном диске, если она ещё не существует.
-Скачивание файлов: Каждый файл будет последовательно скачиваться из S3 и сохраняться в нужную локальную папку.
-Логирование: Программа будет выводить в консоль информацию о том, какой файл скачивается, чтобы вы могли следить за процессом.
-Полный код утилиты для скачивания из S3
-Создайте новый файл cmd/s3-download/main.go и вставьте в него этот код.
-package main
+# Утилита для скачивания файлов из S3-хранилища
+Этот проект содержит Go-скрипт, предназначенный для скачивания всех файлов из указанного S3-совместимого бакета в локальную директорию. Скрипт сохраняет исходную структуру папок и использует современные методы для эффективной работы с большими объёмами данных.
+Скрипт полностью обновлён для использования AWS SDK for Go (v2).
+# Требования
+Для запуска утилиты вам потребуется:
+Go (версия 1.16 или выше)
+Доступ к S3-совместимому хранилищу (например, Amazon S3, MinIO, Yandex Cloud Object Storage и др.)
+# Зависимости Go:
+go get github.com/unclaim/chegonado.git
+go get github.com/aws/aws-sdk-go-v2/config
+go get github.com/aws/aws-sdk-go-v2/credentials
+go get github.com/aws/aws-sdk-go-v2/service/s3
+go get github.com/aws/aws-sdk-go-v2/feature/s3/manager
 
-import (
-	"context"
-	"fmt"
-	"log"
-	"os"
-	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/unclaim/chegonado.git/internal/shared/config"
-)
+# Конфигурация
+Скрипт использует файл конфигурации config.yaml, расположенный в ../../configs/config.yaml. Прежде чем запускать скрипт, убедитесь, что все параметры S3 настроены правильно.
+Пример config.yaml:
+fileStorage:
+  s3:
+    endpoint: "http://127.0.0.1:9000" # URL вашего S3-совместимого хранилища
+    accessKeyID: "your_access_key_id"
+    secretAccessKey: "your_secret_access_key"
+    bucket: "your-bucket-name"
 
-const (
-	localBasePath = "uploads" // Корневая папка для сохранения файлов
-)
 
-// S3Config содержит параметры для подключения к S3.
-type S3Config struct {
-	Endpoint        string
-	AccessKeyID     string
-	SecretAccessKey string
-	Bucket          string
-}
+# Как это работает
+Подключение: Скрипт инициализирует подключение к S3-клиенту, используя параметры из config.yaml.
+Итерация по объектам: Скрипт использует s3.NewListObjectsV2Paginator для эффективного перебора всех объектов в указанном бакете. Этот метод оптимально обрабатывает большие списки файлов, делая запросы постранично.
+Создание локальной структуры: Для каждого файла, найденного в S3, скрипт воссоздаёт соответствующую структуру папок на локальном диске, начиная с базовой директории uploads.
+Скачивание: Затем он использует s3.manager.Downloader для скачивания файла. Этот менеджер автоматически управляет загрузкой, разбивая файл на части, что ускоряет процесс и повышает надёжность.
+Логирование: Процесс скачивания логируется, предоставляя информацию о каждом обработанном файле.
+Запуск:
+go run main.go
 
-// NewS3Client создает и возвращает новый S3-клиент.
-func NewS3Client(cfg *S3Config) (*s3.S3, error) {
-	awsConfig := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Endpoint:         aws.String(cfg.Endpoint),
-		Region:           aws.String("us-east-1"),
-		DisableSSL:       aws.Bool(false),
-		S3ForcePathStyle: aws.Bool(true),
-	}
 
-	sess, err := session.NewSession(awsConfig)
+# Обновление до AWS SDK v2: Ключевые изменения
+Этот скрипт был обновлён с AWS SDK v1 до v2. Ниже приведён обзор основных изменений, которые были внесены в код.
+Функция / Метод (v1)
+Обновление (v2)
+Описание
+session.NewSession()
+config.LoadDefaultConfig()
+Инициализация конфигурации стала более модульной. LoadDefaultConfig автоматически загружает настройки из окружения, общих файлов конфигурации и других источников.
+s3manager.NewDownloaderWithClient()
+manager.NewDownloader()
+Менеджер скачивания перенесён в отдельный пакет feature/s3/manager.
+s3Client.ListObjectsV2PagesWithContext()
+s3.NewListObjectsV2Paginator()
+Итерация по объектам теперь выполняется с помощью итератора-пагинатора, что упрощает и оптимизирует работу с большими наборами данных.
+aws.String()
+aws.String() или &"string_literal"
+Хелперы aws.String остаются, но для получения значения из *string рекомендуется использовать aws.ToString().
+downloader.DownloadWithContext()
+downloader.Download()
+Все вызовы теперь принимают context.Context в качестве первого аргумента.
+
+# Примеры обновлённых функций
+Вот как выглядят ключевые функции скрипта после обновления:
+NewS3Client
+func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
+	creds := credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
+
+	awsConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(creds),
+		config.WithRegion("us-east-1"),
+		config.WithBaseEndpoint(cfg.Endpoint),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось создать AWS сессию: %w", err)
+		return nil, fmt.Errorf("не удалось загрузить AWS-конфигурацию: %w", err)
 	}
 
-	return s3.New(sess), nil
+	s3Client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	return s3Client, nil
 }
 
-// downloadFileFromS3 скачивает один файл из S3.
-func downloadFileFromS3(ctx context.Context, downloader *s3manager.Downloader, bucket, key string) error {
-	filePath := filepath.Join(localBasePath, key)
-	fileDir := filepath.Dir(filePath)
 
-	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		if mkdirErr := os.MkdirAll(fileDir, 0755); mkdirErr != nil {
-			return fmt.Errorf("ошибка создания директории %s: %w", fileDir, mkdirErr)
-		}
-	}
-
+downloadFileFromS3
+func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, bucket, key string) error {
+    // ... (создание файла)
 	file, err := os.Create(filePath)
 	if err != nil {
 		return fmt.Errorf("ошибка создания файла %s: %w", filePath, err)
 	}
 	defer file.Close()
-
-	_, err = downloader.DownloadWithContext(ctx, file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
-		})
+    
+	_, err = downloader.Download(ctx, file, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
 		return fmt.Errorf("не удалось скачать файл %s: %w", key, err)
 	}
 
 	return nil
 }
-
-func main() {
-	ctx := context.Background()
-
-	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("../../configs/config.yaml")
-	if err != nil {
-		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
-	}
-
-	// Подключение к S3
-	s3cfg := &S3Config{
-		Endpoint:        cfg.FileStorage.S3.Endpoint,
-		AccessKeyID:     cfg.FileStorage.S3.AccessKeyID,
-		SecretAccessKey: cfg.FileStorage.S3.SecretAccessKey,
-		Bucket:          cfg.FileStorage.S3.Bucket,
-	}
-	s3Client, err := NewS3Client(s3cfg)
-	if err != nil {
-		log.Fatalf("Не удалось создать S3-клиент: %v", err)
-	}
-	
-	// Используем Downloader для эффективного скачивания файлов
-	downloader := s3manager.NewDownloaderWithClient(s3Client)
-
-	log.Println("Начинаю скачивание файлов из S3...")
-
-	// Получаем список всех объектов в бакете
-	err = s3Client.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s3cfg.Bucket),
-	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, object := range page.Contents {
-			key := aws.StringValue(object.Key)
-			log.Printf("Скачиваю файл: %s", key)
-			
-			if err := downloadFileFromS3(ctx, downloader, s3cfg.Bucket, key); err != nil {
-				log.Printf("Ошибка при скачивании файла %s: %v", key, err)
-			}
-		}
-		return true // Продолжаем итерацию
-	})
-
-	if err != nil {
-		log.Fatalf("Ошибка при получении списка файлов из S3: %v", err)
-	}
-
-	log.Println("Скачивание файлов завершено.")
-}
-
-
-Как использовать
-Сохраните код: Создайте папку cmd/s3-download и файл main.go внутри неё. Вставьте туда код выше.
-Настройте .env: Убедитесь, что ваш файл .env содержит правильные параметры для S3 (S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY и S3_BUCKET).
-Запустите утилиту: Откройте терминал в корневой папке вашего проекта и выполните команду:
-go run cmd/s3-download/main.go
-
-
-Проверка: После завершения работы утилиты в корневой папке проекта появится директория uploads, в которой будет воссоздана вся структура файлов из S3.
-Эта утилита — простой и эффективный способ получить локальную копию всех ваших файлов из S3. Если у вас возникнут вопросы или потребуется добавить в неё какие-то дополнительные функции, просто скажите.
