@@ -1,0 +1,3 @@
+
+# Set default line endings to LF to prevent issues on different OS
+* text=auto eol=lf
