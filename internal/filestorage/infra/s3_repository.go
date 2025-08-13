@@ -3,54 +3,45 @@ package infra
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
+
 	"log"
 	"os"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/unclaim/chegonado.git/internal/shared/config"
 	"github.com/unclaim/chegonado.git/internal/shared/utils"
 )
 
 // S3Repository реализует интерфейс domain.FileStorageRepository для S3-хранилища.
 type S3Repository struct {
-	s3Client *s3.Client
+	s3Client *s3.S3
 	bucket   string
 	endpoint string
 }
 
 // NewS3Repository создает новый экземпляр S3Repository.
-func NewS3Repository(cfg *cfg.AppConfig) (*S3Repository, error) {
-	// Создаем провайдер статических учетных данных.
-	creds := credentials.NewStaticCredentialsProvider(cfg.FileStorage.S3.AccessKeyID, cfg.FileStorage.S3.SecretAccessKey, "")
-
-	// Загружаем конфигурацию, используя провайдер учетных данных.
-	// Здесь мы также можем настроить регион, endpoint и другие параметры.
-	awsConfig, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithCredentialsProvider(creds),
-		config.WithRegion("us-east-1"),
-		config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				URL:           cfg.FileStorage.S3.Endpoint,
-				SigningRegion: "us-east-1",
-			}, nil
-		})),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("не удалось загрузить конфигурацию AWS: %w", err)
+func NewS3Repository(cfg *config.AppConfig) (*S3Repository, error) {
+	awsConfig := &aws.Config{
+		Credentials:      credentials.NewStaticCredentials(cfg.FileStorage.S3.AccessKeyID, cfg.FileStorage.S3.SecretAccessKey, ""),
+		Endpoint:         aws.String(cfg.FileStorage.S3.Endpoint),
+		Region:           aws.String("us-east-1"),
+		DisableSSL:       aws.Bool(false),
+		S3ForcePathStyle: aws.Bool(true),
 	}
 
-	// Создаем новый S3-клиент.
+	sess, err := session.NewSession(awsConfig)
+	if err != nil {
+		return nil, fmt.Errorf("не удалось создать AWS сессию: %w", err)
+	}
+
 	return &S3Repository{
-		s3Client: s3.NewFromConfig(awsConfig, func(o *s3.Options) {
-			o.UsePathStyle = true
-		}),
+		s3Client: s3.New(sess),
 		bucket:   cfg.FileStorage.S3.Bucket,
 		endpoint: cfg.FileStorage.S3.Endpoint,
 	}, nil
@@ -64,12 +55,12 @@ func (r *S3Repository) SaveFile(ctx context.Context, filePath string, file io.Re
 		return "", fmt.Errorf("не удалось прочитать файл: %w", err)
 	}
 
-	// s3.PutObjectInput теперь не принимает io.Reader напрямую.
-	// Используем bytes.NewReader(buf.Bytes()) для получения Reader-а.
-	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+	reader := bytes.NewReader(buf.Bytes())
+
+	_, err = r.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(r.bucket),
 		Key:    aws.String(filePath),
-		Body:   bytes.NewReader(buf.Bytes()),
+		Body:   reader,
 	})
 	if err != nil {
 		return "", fmt.Errorf("не удалось сохранить файл в S3: %w", err)
@@ -80,7 +71,7 @@ func (r *S3Repository) SaveFile(ctx context.Context, filePath string, file io.Re
 
 // DeleteFile удаляет файл из S3.
 func (r *S3Repository) DeleteFile(ctx context.Context, filePath string) error {
-	_, err := r.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+	_, err := r.s3Client.DeleteObjectWithContext(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(r.bucket),
 		Key:    aws.String(filePath),
 	})
@@ -92,13 +83,12 @@ func (r *S3Repository) DeleteFile(ctx context.Context, filePath string) error {
 
 // CheckFileExists проверяет существование файла в S3.
 func (r *S3Repository) CheckFileExists(ctx context.Context, filePath string) (bool, error) {
-	_, err := r.s3Client.HeadObject(ctx, &s3.HeadObjectInput{
+	_, err := r.s3Client.HeadObjectWithContext(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(r.bucket),
 		Key:    aws.String(filePath),
 	})
 	if err != nil {
-		var noSuchKey *types.NotFound
-		if errors.As(err, &noSuchKey) {
+		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == "NotFound" {
 			return false, nil
 		}
 		return false, fmt.Errorf("ошибка при проверке существования файла в S3: %w", err)
@@ -108,24 +98,29 @@ func (r *S3Repository) CheckFileExists(ctx context.Context, filePath string) (bo
 
 // CreateDefaultAvatar создает аватар по умолчанию в S3.
 func (r *S3Repository) CreateDefaultAvatar(ctx context.Context, email string, userID int64) (string, error) {
+	// Создаём временный файл на диске с помощью os.CreateTemp
 	tempFile, err := os.CreateTemp("", "default_avatar.png")
 	if err != nil {
 		return "", fmt.Errorf("не удалось создать временный файл: %w", err)
 	}
 	tempFileName := tempFile.Name()
+	// Закрываем временный файл и проверяем ошибку
 	if err := tempFile.Close(); err != nil {
 		return "", err
 	}
+	// Планируем удаление временного файла с обработкой ошибок
 	defer func() {
 		if err := os.Remove(tempFileName); err != nil {
 			log.Printf("Failed to remove temp file %s: %v", tempFileName, err)
 		}
 	}()
 
+	// Генерируем аватар в этот временный файл
 	if err := utils.GenerateAvatar(email, tempFileName); err != nil {
 		return "", fmt.Errorf("не удалось сгенерировать аватар: %w", err)
 	}
 
+	// Открываем временный файл для чтения
 	fileReader, err := os.Open(tempFileName)
 	if err != nil {
 		return "", fmt.Errorf("не удалось открыть временный файл: %w", err)
@@ -138,7 +133,8 @@ func (r *S3Repository) CreateDefaultAvatar(ctx context.Context, email string, us
 
 	avatarPath := fmt.Sprintf("users/%d/avatars/default_avatar.png", userID)
 
-	_, err = r.s3Client.PutObject(ctx, &s3.PutObjectInput{
+	// Загружаем файл в S3
+	_, err = r.s3Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Bucket:      aws.String(r.bucket),
 		Key:         aws.String(avatarPath),
 		Body:        fileReader,
