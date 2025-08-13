@@ -157,9 +157,3 @@ func main() {
 
 	log.Println("Скачивание файлов завершено.")
 }
-PS D:\Y\chegonado> golangci-lint run ./...
-cmd\s3-download\main.go:42:3: SA1019: config.WithEndpointResolver is deprecated: The global endpoint resolution interface is deprecated. The API for endpoint resolution is now unique to each service and is set via the EndpointResolverV2 field on service client options. Use of WithEndpointResolver or WithEndpointResolverWithOptions will prevent you from using any endpoint-related service features released after the introduction of EndpointResolverV2. You may also encounter broken or unexpected behavior when using the old global interface with services that use many endpoint-related customizations such as S3. (staticcheck)
-                config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
-                ^
-cmd\s3-download\main.go:43:11: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
-                        return aws.Endpoint{
