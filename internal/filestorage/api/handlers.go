@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/unclaim/chegonado/internal/filestorage/domain"
-	"github.com/unclaim/chegonado/internal/shared/common_errors"
-	"github.com/unclaim/chegonado/internal/shared/utils"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/internal/filestorage/domain"
+	"github.com/unclaim/chegonado.git/internal/shared/common_errors"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 // FileStorageHandler содержит сервис для работы с файлами.

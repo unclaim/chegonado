@@ -14,8 +14,8 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/lib/pq"
-	"github.com/unclaim/chegonado/internal/shared/utils"
-	"github.com/unclaim/chegonado/internal/users/domain"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/internal/users/domain"
 	"golang.org/x/crypto/argon2"
 )
 

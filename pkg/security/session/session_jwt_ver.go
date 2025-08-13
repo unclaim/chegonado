@@ -13,7 +13,7 @@ import (
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado/internal/shared/utils/randutils"
+	"github.com/unclaim/chegonado.git/internal/shared/utils/randutils"
 )
 
 // SessionsJWTVer представляет собой структуру для управления сессиями с использованием JWT.

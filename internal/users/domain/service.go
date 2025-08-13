@@ -16,10 +16,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/unclaim/chegonado/internal/shared/config"
-	"github.com/unclaim/chegonado/internal/shared/ports"
-	"github.com/unclaim/chegonado/pkg/security/session"
-	"github.com/unclaim/chegonado/pkg/security/token"
+	"github.com/unclaim/chegonado.git/internal/shared/config"
+	"github.com/unclaim/chegonado.git/internal/shared/ports"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/token"
 )
 
 // UsersServiceImp implements the UsersService interface.

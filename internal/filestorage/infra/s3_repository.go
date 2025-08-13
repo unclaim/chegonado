@@ -14,8 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/unclaim/chegonado/internal/shared/config"
-	"github.com/unclaim/chegonado/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/internal/shared/config"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
 )
 
 // S3Repository реализует интерфейс domain.FileStorageRepository для S3-хранилища.

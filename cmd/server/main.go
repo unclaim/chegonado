@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/unclaim/chegonado/docs"
-	"github.com/unclaim/chegonado/internal"
+	_ "github.com/unclaim/chegonado.git/docs"
+	"github.com/unclaim/chegonado.git/internal"
 )
 
 // Информация о сервере

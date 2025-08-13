@@ -16,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado/internal/shared/config"
+	"github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
 const (

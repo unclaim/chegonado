@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/lib/pq"
 
-	"github.com/unclaim/chegonado/internal/tasks/domain" // Обновленный импорт моделей
+	"github.com/unclaim/chegonado.git/internal/tasks/domain" // Обновленный импорт моделей
 )
 
 // TasksRepository представляет реализацию репозитория задач для PostgreSQL.

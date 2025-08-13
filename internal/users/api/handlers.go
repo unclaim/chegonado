@@ -11,12 +11,12 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v4"
-	"github.com/unclaim/chegonado/internal/shared/common_errors"
-	"github.com/unclaim/chegonado/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/internal/shared/common_errors"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
 
-	"github.com/unclaim/chegonado/internal/users/domain"
-	"github.com/unclaim/chegonado/pkg/security/session"
-	"github.com/unclaim/chegonado/pkg/security/token"
+	"github.com/unclaim/chegonado.git/internal/users/domain"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/token"
 )
 
 type UserHandler struct {

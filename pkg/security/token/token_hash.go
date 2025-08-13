@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 // fbc1fd86ab53d52c3ffeb6529aea9676e14bc52b792414c32f5612b4eb2c9745:1567618546

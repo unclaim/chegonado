@@ -7,10 +7,10 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/unclaim/chegonado/internal/chat/domain"
-	"github.com/unclaim/chegonado/internal/shared/common_errors"
-	"github.com/unclaim/chegonado/internal/shared/utils"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/internal/chat/domain"
+	"github.com/unclaim/chegonado.git/internal/shared/common_errors"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 // ChatHandler отвечает за обработку HTTP-запросов, связанных с чатом.

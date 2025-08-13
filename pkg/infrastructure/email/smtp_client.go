@@ -9,8 +9,8 @@ import (
 	"net/smtp"
 	"net/textproto"
 
-	"github.com/unclaim/chegonado/internal/shared/config"
-	"github.com/unclaim/chegonado/internal/shared/ports"
+	"github.com/unclaim/chegonado.git/internal/shared/config"
+	"github.com/unclaim/chegonado.git/internal/shared/ports"
 )
 
 // SMTPClient реализует интерфейс ports.EmailSender для отправки писем через SMTP.

@@ -11,7 +11,7 @@ import (
 	"log/slog" // Импортируем пакет slog для логирования
 
 	jwt "github.com/dgrijalva/jwt-go"
-	"github.com/unclaim/chegonado/internal/shared/utils/randutils"
+	"github.com/unclaim/chegonado.git/internal/shared/utils/randutils"
 )
 
 // SessionsJWT представляет собой структуру для управления сессиями с использованием JWT.

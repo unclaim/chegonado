@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado/internal/chat/domain"
+	"github.com/unclaim/chegonado.git/internal/chat/domain"
 )
 
 // ChatRepository реализует интерфейс ChatRepositoryPort.

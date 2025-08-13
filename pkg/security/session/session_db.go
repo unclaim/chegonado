@@ -13,7 +13,7 @@ import (
 	"log/slog" // Импортируем пакет slog для логирования
 
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado/internal/shared/utils/randutils"
+	"github.com/unclaim/chegonado.git/internal/shared/utils/randutils"
 )
 
 // SessionsDB представляет собой структуру, которая содержит пул соединений с базой данных.

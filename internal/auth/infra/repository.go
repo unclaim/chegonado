@@ -8,9 +8,9 @@ import (
 	"log"
 	"time"
 
-	FileStorage "github.com/unclaim/chegonado/internal/filestorage/domain"
-	"github.com/unclaim/chegonado/internal/users/domain"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	FileStorage "github.com/unclaim/chegonado.git/internal/filestorage/domain"
+	"github.com/unclaim/chegonado.git/internal/users/domain"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"

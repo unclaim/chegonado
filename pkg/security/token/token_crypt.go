@@ -10,7 +10,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 type CryptToken struct {

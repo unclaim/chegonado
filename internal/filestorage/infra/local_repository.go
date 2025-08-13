@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/unclaim/chegonado/internal/shared/utils"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
 )
 
 const (

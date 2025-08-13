@@ -3,7 +3,7 @@ package index
 import (
 	"net/http"
 
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 func ServeIndexPage(w http.ResponseWriter, r *http.Request) {

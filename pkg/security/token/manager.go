@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 type TokenManager interface {

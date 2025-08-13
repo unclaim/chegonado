@@ -7,11 +7,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/unclaim/chegonado/internal/auth/domain"
-	"github.com/unclaim/chegonado/internal/shared/common_errors"
-	"github.com/unclaim/chegonado/internal/shared/utils"
-	u "github.com/unclaim/chegonado/internal/users/domain"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/internal/auth/domain"
+	"github.com/unclaim/chegonado.git/internal/shared/common_errors"
+	"github.com/unclaim/chegonado.git/internal/shared/utils"
+	u "github.com/unclaim/chegonado.git/internal/users/domain"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 var ErrInvalidCredentials = errors.New("неверные учетные данные")

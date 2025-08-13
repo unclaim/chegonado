@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado/internal/filestorage/infra"
+	"github.com/unclaim/chegonado.git/internal/filestorage/infra"
 )
 
 const (

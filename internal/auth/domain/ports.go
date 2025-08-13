@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/unclaim/chegonado/internal/users/domain"
-	"github.com/unclaim/chegonado/pkg/infrastructure/eventbus"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	"github.com/unclaim/chegonado.git/internal/users/domain"
+	"github.com/unclaim/chegonado.git/pkg/infrastructure/eventbus"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 // AuthRepository определяет методы для взаимодействия с хранилищем данных.

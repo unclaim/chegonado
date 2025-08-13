@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/unclaim/chegonado/internal/auth"
+	"github.com/unclaim/chegonado.git/internal/auth"
 )
 
 // gamificationService реализует интерфейс GamificationService.

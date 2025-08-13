@@ -8,16 +8,16 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpSwagger "github.com/swaggo/http-swagger"
-	_ "github.com/unclaim/chegonado/docs" // Импортируем документацию Swagger
-	"github.com/unclaim/chegonado/internal/auth/api"
-	chatAPI "github.com/unclaim/chegonado/internal/chat/api"
-	filestorageAPI "github.com/unclaim/chegonado/internal/filestorage/api"
-	tasksAPI "github.com/unclaim/chegonado/internal/tasks/api"
-	usersAPI "github.com/unclaim/chegonado/internal/users/api"
-	"github.com/unclaim/chegonado/pkg/index"
-	"github.com/unclaim/chegonado/pkg/private"
-	"github.com/unclaim/chegonado/pkg/public"
-	"github.com/unclaim/chegonado/pkg/security/session"
+	_ "github.com/unclaim/chegonado.git/docs" // Импортируем документацию Swagger
+	"github.com/unclaim/chegonado.git/internal/auth/api"
+	chatAPI "github.com/unclaim/chegonado.git/internal/chat/api"
+	filestorageAPI "github.com/unclaim/chegonado.git/internal/filestorage/api"
+	tasksAPI "github.com/unclaim/chegonado.git/internal/tasks/api"
+	usersAPI "github.com/unclaim/chegonado.git/internal/users/api"
+	"github.com/unclaim/chegonado.git/pkg/index"
+	"github.com/unclaim/chegonado.git/pkg/private"
+	"github.com/unclaim/chegonado.git/pkg/public"
+	"github.com/unclaim/chegonado.git/pkg/security/session"
 )
 
 var requestCount = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_requests_total", Help: "Total number of HTTP requests"}, []string{"method"})

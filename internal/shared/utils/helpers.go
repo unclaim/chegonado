@@ -14,8 +14,8 @@ import (
 
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
-	"github.com/unclaim/chegonado/internal/shared/common_errors"
-	"github.com/unclaim/chegonado/internal/users/domain"
+	"github.com/unclaim/chegonado.git/internal/shared/common_errors"
+	"github.com/unclaim/chegonado.git/internal/users/domain"
 
 	"golang.org/x/crypto/bcrypt"
 )
