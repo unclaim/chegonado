@@ -6,12 +6,13 @@
 Go (версия 1.16 или выше)
 Доступ к S3-совместимому хранилищу (например, Amazon S3, MinIO, Yandex Cloud Object Storage и др.)
 # Зависимости Go:
+```go
 go get github.com/unclaim/chegonado.git
 go get github.com/aws/aws-sdk-go-v2/config
 go get github.com/aws/aws-sdk-go-v2/credentials
 go get github.com/aws/aws-sdk-go-v2/service/s3
 go get github.com/aws/aws-sdk-go-v2/feature/s3/manager
-
+```
 
 # Конфигурация
 Скрипт использует файл конфигурации config.yaml, расположенный в ../../configs/config.yaml. Прежде чем запускать скрипт, убедитесь, что все параметры S3 настроены правильно.
@@ -58,6 +59,7 @@ downloader.Download()
 # Примеры обновлённых функций
 Вот как выглядят ключевые функции скрипта после обновления:
 NewS3Client
+```go
 func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
 	creds := credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
 
@@ -97,3 +99,4 @@ func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, buc
 
 	return nil
 }
+```

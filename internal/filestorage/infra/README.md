@@ -6,14 +6,16 @@ Go (версия 1.16 или выше)
 Доступ к S3-совместимому хранилищу
 Пакет github.com/unclaim/chegonado.git для доступа к конфигурации и утилитам.
 # Зависимости Go:
+```go
 go get github.com/aws/aws-sdk-go-v2/config
 go get github.com/aws/aws-sdk-go-v2/credentials
 go get github.com/aws/aws-sdk-go-v2/service/s3
-
+```
 
 # Конфигурация
 Репозиторий загружает свои настройки из структуры cfg.AppConfig, которая, в свою очередь, читает данные из файла config.yaml. Убедитесь, что в этом файле правильно настроены параметры S3.
 Пример config.yaml:
+```yaml
 fileStorage:
   s3:
     endpoint: "http://127.0.0.1:9000" # URL вашего S3-совместимого хранилища
@@ -21,7 +23,7 @@ fileStorage:
     secretAccessKey: "your_secret_access_key"
     bucket: "your-bucket-name"
 
-
+```
 # Обзор и использование
 S3Repository реализует интерфейс, который позволяет абстрагировать логику работы с файлами от основной части приложения.
 Создание репозитория (NewS3Repository)
