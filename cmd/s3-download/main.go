@@ -14,7 +14,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
 	// Убедись, что путь к твоему пакету с конфигом правильный.
-	// Я оставил его, как в твоем коде.
 	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
@@ -38,10 +37,13 @@ func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
 	awsConfig, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(creds),
 		config.WithRegion("us-east-1"), // Регион можно изменить, если нужно
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+		// Использование актуального WithEndpointResolver.
+		// Теперь функция-резолвер принимает только регион и возвращает Endpoint.
+		config.WithEndpointResolver(aws.EndpointResolverFunc(func(region string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				URL:           cfg.Endpoint,
 				SigningRegion: "us-east-1",
+				Source:        aws.EndpointSourceCustom,
 			}, nil
 		})),
 	)
@@ -154,9 +156,4 @@ func main() {
 
 	log.Println("Скачивание файлов завершено.")
 }
-PS D:\Y\chegonado> golangci-lint run ./...
-cmd\s3-download\main.go:41:3: SA1019: config.WithEndpointResolverWithOptions is deprecated: The global endpoint resolution interface is deprecated. See deprecation docs on [WithEndpointResolver]. (staticcheck)
-                config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-                ^
-cmd\s3-download\main.go:42:11: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
-                        return aws.Endpoint{
+cannot convert (func(region string, options ...interface{}) (aws.Endpoint, error) literal) (value of type func(region string, options ...interface{}) (aws.Endpoint, error)) to type aws.EndpointResolverFunc
