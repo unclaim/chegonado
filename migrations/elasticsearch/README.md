@@ -1,0 +1,3 @@
+# elasticsearch
+
+Миграции для Elasticsearch.

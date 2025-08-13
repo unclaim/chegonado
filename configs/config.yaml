@@ -1,0 +1,142 @@
+# Основные параметры приложения
+app:
+  name: "unclaimeds"
+  environment: "development"
+  version: "1.0.0"
+  id: "app_id"
+  debug: true
+
+# Параметры сервера
+server:
+  host: "0.0.0.0"
+  port: 8585
+  read_timeout: "30s"
+  write_timeout: "30s"
+  idle_timeout: "60s"
+  max_header_size: 1024 # в байтах
+  keepalive_timeout: "75s"
+
+# Параметры базы данных
+database:
+  type: "postgres"
+  # URL здесь является приоритетным, если он задан в .env
+  url: ${DATABASE_URL}
+  host: ${DB_HOST}
+  port: "5432"
+  user: "unclaimeds_admin"
+  password: ${DB_PASSWORD} # Используйте переменные окружения!
+  name: "unclaimeds"
+  max_connections: 100
+  connection_timeout: "5s"
+  sslmode: "disable"
+
+# Кэширование
+cache:
+  enabled: true
+  type: "redis"
+  url: ""
+  host: "localhost"
+  port: 6379
+  password: "" # Используйте переменные окружения!
+  db: 0
+  ttl: "60s"
+
+# Логирование
+logging:
+  level: "info"
+  output: "stdout"
+  format: "json"
+
+# Мониторинг и алертинг
+monitoring:
+  enabled: true
+  prometheus:
+    endpoint: ""
+    scrape_interval: "30s"
+    timeout: "10s"
+  alerts:
+    email:
+      enabled: true
+      recipients:
+        - "alerts@example.com"
+      smtp_server: ""
+      smtp_port: 587
+      username: ""
+      password: "" # Используйте переменные окружения!
+      from: "no-reply@example.com"
+      from_name: "Unclaimeds Alerts"
+  health_check:
+    enabled: true
+    interval: "10s"
+    timeout: "5s"
+
+# API параметры
+api:
+  version: "v1"
+  rate_limiting:
+    enabled: true
+    limit: 1000
+    interval: "1m"
+  cors:
+    allow_origin:
+      - "*"
+    allow_methods:
+      - "GET"
+      - "POST"
+      - "PUT"
+      - "DELETE"
+      - "OPTIONS"
+
+# Подключения к сторонним сервисам
+external_services:
+  payment_gateway:
+    url: "https://api.payment.com/v1"
+    api_key: "" # Используйте переменные окружения!
+    timeout: "5s"
+  notification_service:
+    url: "https://api.notifications.com/v1/send"
+    secret: "" # Используйте переменные окружения!
+    retries: 3
+
+# Безопасность
+security:
+  jwt_secret: "" # Используйте переменные окружения!
+  password_salt: "" # Используйте переменные окружения!
+  session_secret: "" # Используйте переменные окружения!
+  enable_https: false
+  allowed_ips:
+    - "127.0.0.1"
+  api_security:
+    enable_api_key: true
+    api_key_param: "api_key"
+    api_key: "" # Используйте переменные окружения!
+  csrf_protection: true
+  content_security_policy:
+    enabled: true
+    policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';"
+  input_validation: true
+  logging_audit:
+    enabled: true
+    log_sensitive_actions: true
+# Настройки для файлового хранилища
+file_storage:
+  type: "s3"
+  s3:
+    endpoint: ${S3_ENDPOINT}
+    access_key_id: ${S3_ACCESS_KEY_ID}
+    secret_access_key: ${S3_SECRET_ACCESS_KEY}
+    bucket: ${S3_BUCKET}
+    
+# Среда выполнения
+deployment:
+  strategy: "rolling"
+  replica_count: 3
+  health_checks:
+    readiness:
+      path: "/healthz"
+      interval: "10s"
+      timeout: "5s"
+    liveness:
+      path: "/healthy"
+      interval: "10s"
+      timeout: "5s"

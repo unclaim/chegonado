@@ -1,0 +1,9 @@
+PUT /tasks
+{
+  "mappings": {
+    "properties": {
+      "id": { "type": "keyword" },
+      "title": { "type": "text" }
+    }
+  }
+}

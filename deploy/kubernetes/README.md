@@ -1,0 +1,3 @@
+# kubernetes
+
+Файлы манифестов Kubernetes.

@@ -1,0 +1,352 @@
+basePath: /api
+definitions:
+  domain.LoginEmailRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  domain.LoginRequest:
+    properties:
+      password_hash:
+        type: string
+      username:
+        type: string
+    type: object
+  domain.ResendCodeRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  domain.SignUpRequest:
+    properties:
+      email:
+        description: Электронная почта пользователя
+        type: string
+      first_name:
+        description: Имя пользователя
+        type: string
+      last_name:
+        description: Фамилия пользователя
+        type: string
+      password_hash:
+        description: Хэш нового пароля
+        type: string
+      username:
+        description: Имя пользователя для входа
+        type: string
+    type: object
+  domain.SignupEmailRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  domain.VerifyEmailCodeRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+    type: object
+  utils.Response:
+    properties:
+      body:
+        description: Тело ответа (может содержать любые данные или ErrorResponse)
+      statusCode:
+        description: Код статуса HTTP-ответа
+        type: integer
+    type: object
+host: localhost:8585
+info:
+  contact: {}
+  description: Сервис помогает искать специалистов различных профессий...
+  title: Unclaimeds API
+  version: "1.0"
+paths:
+  /account/sessions:
+    get:
+      description: Возвращает список всех активных сессий текущего пользователя.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Список сессий
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Получить активные сессии
+      tags:
+      - Сессии
+  /auth/login/send-code:
+    post:
+      consumes:
+      - application/json
+      description: Отправляет 6-значный код на email для входа в систему без пароля.
+      parameters:
+      - description: Email пользователя
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/domain.LoginEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Код отправлен
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Отправить код для входа
+      tags:
+      - Аутентификация
+  /auth/login/verify-code:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет 6-значный код, присланный на email, и авторизует пользователя.
+      parameters:
+      - description: Email и код
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.VerifyEmailCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Вход выполнен успешно
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Проверить код и войти
+      tags:
+      - Аутентификация
+  /auth/password:
+    post:
+      consumes:
+      - application/json
+      description: Позволяет авторизованному пользователю изменить свой пароль.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Пароль успешно изменен
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Изменить пароль
+      tags:
+      - Пароли
+  /auth/password/reset:
+    post:
+      consumes:
+      - application/json
+      description: Отправляет на указанный email ссылку для сброса пароля.
+      parameters:
+      - description: Email пользователя для сброса пароля
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/domain.LoginEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Ссылка успешно отправлена
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Запрос на сброс пароля
+      tags:
+      - Пароли
+  /auth/password/reset/confirm:
+    post:
+      consumes:
+      - application/json
+      description: Устанавливает новый пароль, используя токен сброса.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Пароль успешно обновлён
+          schema:
+            type: string
+      summary: Сброс пароля
+      tags:
+      - Пароли
+  /auth/password/reset/page:
+    get:
+      description: Возвращает информацию для страницы сброса пароля, используя токен.
+      parameters:
+      - description: Токен сброса пароля
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Информация о сбросе
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Получить страницу сброса пароля
+      tags:
+      - Пароли
+  /auth/resend-code:
+    post:
+      consumes:
+      - application/json
+      description: Отправляет новый 6-значный код на email для верификации.
+      parameters:
+      - description: Email пользователя
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/domain.ResendCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Новый код отправлен
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Повторная отправка кода
+      tags:
+      - Верификация
+  /auth/session:
+    get:
+      description: Проверяет наличие и валидность сессии пользователя.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сессия активна
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Проверка сессии
+      tags:
+      - Сессии
+  /auth/sessions/revoke:
+    post:
+      consumes:
+      - application/json
+      description: Аннулирует указанную сессию пользователя по ID.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Сессия успешно отменена
+          schema:
+            $ref: '#/definitions/utils.Response'
+      security:
+      - BearerAuth: []
+      summary: Отменить сессию
+      tags:
+      - Сессии
+  /auth/signout:
+    post:
+      description: Деавторизует текущего пользователя, удаляя сессию.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный выход
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Выход из системы
+      tags:
+      - Аутентификация
+  /auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Создает нового пользователя с логином и паролем.
+      parameters:
+      - description: Данные для регистрации
+        in: body
+        name: signupRequest
+        required: true
+        schema:
+          $ref: '#/definitions/domain.SignUpRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешная регистрация
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Регистрация нового пользователя
+      tags:
+      - Регистрация
+  /auth/signup/send-code:
+    post:
+      consumes:
+      - application/json
+      description: Отправляет 6-значный код на email для упрощенной регистрации.
+      parameters:
+      - description: Email нового пользователя
+        in: body
+        name: email
+        required: true
+        schema:
+          $ref: '#/definitions/domain.SignupEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Код отправлен
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Отправить код для регистрации
+      tags:
+      - Регистрация
+  /auth/signup/verify-code:
+    post:
+      consumes:
+      - application/json
+      description: Проверяет 6-значный код и автоматически создает аккаунт.
+      parameters:
+      - description: Email и код
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.VerifyEmailCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Регистрация прошла успешно
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Проверить код и зарегистрировать пользователя
+      tags:
+      - Регистрация
+  /user/login:
+    post:
+      consumes:
+      - application/json
+      description: Проводит авторизацию пользователя по логину и паролю.
+      parameters:
+      - description: Данные для входа
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/domain.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Успешный вход
+          schema:
+            $ref: '#/definitions/utils.Response'
+      summary: Авторизация пользователя
+      tags:
+      - Аутентификация
+swagger: "2.0"

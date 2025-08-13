@@ -1,0 +1,3 @@
+# postgres
+
+Миграции для PostgreSQL.
