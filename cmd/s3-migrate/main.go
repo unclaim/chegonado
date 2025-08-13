@@ -11,19 +11,18 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado.git/internal/shared/config"
+	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
 const (
 	localBasePath = "../../uploads" // Базовый путь для локальных файлов
 )
 
-// S3Config содержит параметры для подключения к S3.
+// S3Config contains parameters for connecting to S3.
 type S3Config struct {
 	Endpoint        string
 	AccessKeyID     string
@@ -31,25 +30,27 @@ type S3Config struct {
 	Bucket          string
 }
 
-// NewS3Client создает и возвращает новый S3-клиент.
-func NewS3Client(cfg *S3Config) (*s3.S3, error) {
-	awsConfig := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Endpoint:         aws.String(cfg.Endpoint),
-		Region:           aws.String("us-east-1"),
-		DisableSSL:       aws.Bool(false),
-		S3ForcePathStyle: aws.Bool(true),
-	}
+// NewS3Client creates and returns a new S3-client using AWS SDK v2.
+func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
+	creds := credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
 
-	sess, err := session.NewSession(awsConfig)
+	awsConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(creds),
+		config.WithRegion("us-east-1"),
+		config.WithBaseEndpoint(cfg.Endpoint),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось создать AWS сессию: %w", err)
+		return nil, fmt.Errorf("не удалось загрузить AWS-конфигурацию: %w", err)
 	}
 
-	return s3.New(sess), nil
+	s3Client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	return s3Client, nil
 }
 
-// updateDBLink обновляет URL аватара в базе данных.
+// updateDBLink updates the avatar URL in the database.
 func updateDBLink(ctx context.Context, db *pgxpool.Pool, userID int64, newURL string) error {
 	_, err := db.Exec(ctx, "UPDATE users SET avatar_url = $1 WHERE id = $2", newURL, userID)
 	if err != nil {
@@ -58,30 +59,32 @@ func updateDBLink(ctx context.Context, db *pgxpool.Pool, userID int64, newURL st
 	return nil
 }
 
-// uploadFileToS3 загружает файл в S3 и возвращает его полный URL.
-func uploadFileToS3(ctx context.Context, client *s3.S3, bucket, filePath string, file io.Reader) (string, error) {
-	// Читаем содержимое файла в байтовый слайс
+// uploadFileToS3 uploads a file to S3 and returns its full URL using AWS SDK v2.
+func uploadFileToS3(ctx context.Context, client *s3.Client, bucket, filePath string, file io.Reader) (string, error) {
+	// Read the file content into a byte slice
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(file)
 	if err != nil {
 		return "", fmt.Errorf("не удалось прочитать файл: %w", err)
 	}
 
-	// Создаем io.ReadSeeker из байтового слайса
-	reader := bytes.NewReader(buf.Bytes())
-	_, err = client.PutObjectWithContext(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(bucket),
-		Key:    aws.String(filePath),
-		Body:   reader,
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: &bucket,
+		Key:    &filePath,
+		Body:   bytes.NewReader(buf.Bytes()),
 	})
 	if err != nil {
 		return "", fmt.Errorf("не удалось загрузить файл в S3: %w", err)
 	}
-	return fmt.Sprintf("%s/%s/%s", client.Endpoint, bucket, filePath), nil
+
+	// NOTE: Endpoint is not directly available on the client in v2, so we need to pass it from config.
+	// We'll return the URL based on the endpoint and bucket from the config.
+	// You might need to adjust this depending on your S3 provider's URL format.
+	return fmt.Sprintf("%s/%s/%s", client.Options().BaseEndpoint, bucket, filePath), nil
 }
 
-// migrateUserAvatars переносит аватары одного пользователя.
-func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, s3Bucket, userFolder string) {
+// migrateUserAvatars migrates one user's avatars.
+func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.Client, s3Bucket, s3Endpoint, userFolder string) {
 	userIDStr := filepath.Base(userFolder)
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
@@ -91,7 +94,7 @@ func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, 
 
 	avatarsPath := filepath.Join(userFolder, "avatars")
 	if _, err := os.Stat(avatarsPath); os.IsNotExist(err) {
-		return // Папка с аватарами не найдена, ничего не делаем.
+		return // Avatar folder not found, do nothing.
 	}
 
 	err = filepath.Walk(avatarsPath, func(filePath string, info os.FileInfo, err error) error {
@@ -115,19 +118,15 @@ func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, 
 			}
 		}()
 
-		// Копируем файл в буфер, чтобы можно было использовать его дважды
-		var buf bytes.Buffer
-		tee := io.TeeReader(file, &buf)
-
-		// Используем filepath.Rel, чтобы получить путь относительно папки uploads.
+		// Use filepath.Rel to get the path relative to the localBasePath folder.
 		s3FilePath, err := filepath.Rel(localBasePath, filePath)
 		if err != nil {
 			return fmt.Errorf("не удалось получить относительный путь: %w", err)
 		}
-		// Заменяем разделители пути, чтобы они соответствовали формату URL.
+		// Replace path separators to match the URL format.
 		s3FilePath = strings.ReplaceAll(s3FilePath, "\\", "/")
 
-		s3URL, err := uploadFileToS3(ctx, s3Client, s3Bucket, s3FilePath, tee)
+		s3URL, err := uploadFileToS3(ctx, s3Client, s3Bucket, s3FilePath, file)
 		if err != nil {
 			return fmt.Errorf("ошибка загрузки файла в S3: %w", err)
 		}
@@ -149,13 +148,13 @@ func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, 
 func main() {
 	ctx := context.Background()
 
-	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("../../configs/config.yaml")
+	// Load configuration
+	cfg, err := cfg.LoadConfig("../../configs/config.yaml")
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
 
-	// Подключение к базе данных
+	// Connect to the database
 	dbURL := cfg.Database.URL
 	if dbURL == "" {
 		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
@@ -167,19 +166,19 @@ func main() {
 	}
 	defer dbpool.Close()
 
-	// Подключение к S3
+	// Connect to S3
 	s3cfg := &S3Config{
 		Endpoint:        cfg.FileStorage.S3.Endpoint,
 		AccessKeyID:     cfg.FileStorage.S3.AccessKeyID,
 		SecretAccessKey: cfg.FileStorage.S3.SecretAccessKey,
 		Bucket:          cfg.FileStorage.S3.Bucket,
 	}
-	s3Client, err := NewS3Client(s3cfg)
+	s3Client, err := NewS3Client(ctx, s3cfg)
 	if err != nil {
 		log.Fatalf("Не удалось создать S3-клиент: %v", err)
 	}
 
-	// Начинаем миграцию
+	// Start migration
 	log.Println("Начинаю миграцию локальных аватаров в S3...")
 
 	err = filepath.Walk(filepath.Join(localBasePath, "users"), func(path string, info os.FileInfo, err error) error {
@@ -187,9 +186,9 @@ func main() {
 			return err
 		}
 		if info.IsDir() && filepath.Base(path) != "users" {
-			// Это папка пользователя, запускаем миграцию для неё
-			migrateUserAvatars(ctx, dbpool, s3Client, s3cfg.Bucket, path)
-			return filepath.SkipDir // Пропускаем поддиректории, так как мы их обработали вручную
+			// This is a user folder, start migration for it
+			migrateUserAvatars(ctx, dbpool, s3Client, s3cfg.Bucket, s3cfg.Endpoint, path)
+			return filepath.SkipDir // Skip subdirectories as we handled them manually
 		}
 		return nil
 	})
@@ -200,3 +199,9 @@ func main() {
 
 	log.Println("Миграция завершена.")
 }
+
+
+Выполняет, но не корректно 
+2025/08/13 11:56:45 Успешно перенесен аватар пользователя 99: ..\..\uploads\users\99\avatars\99.jpg -> %!s(*string=0xc0002820d0)/unclaimeds/users/99/avatars/99.jpg
+
+не корректно отображается %!s(*string=0xc0002820d0)

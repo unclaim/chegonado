@@ -7,19 +7,19 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/unclaim/chegonado.git/internal/shared/config"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
 const (
 	localBasePath = "uploads" // Корневая папка для сохранения файлов
 )
 
-// S3Config содержит параметры для подключения к S3.
+// S3Config contains parameters for connecting to S3.
 type S3Config struct {
 	Endpoint        string
 	AccessKeyID     string
@@ -27,26 +27,28 @@ type S3Config struct {
 	Bucket          string
 }
 
-// NewS3Client создает и возвращает новый S3-клиент.
-func NewS3Client(cfg *S3Config) (*s3.S3, error) {
-	awsConfig := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Endpoint:         aws.String(cfg.Endpoint),
-		Region:           aws.String("us-east-1"),
-		DisableSSL:       aws.Bool(false),
-		S3ForcePathStyle: aws.Bool(true),
-	}
+// NewS3Client creates and returns a new S3-client using AWS SDK v2.
+func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
+	creds := credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
 
-	sess, err := session.NewSession(awsConfig)
+	awsConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(creds),
+		config.WithRegion("us-east-1"),
+		config.WithBaseEndpoint(cfg.Endpoint),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось создать AWS сессию: %w", err)
+		return nil, fmt.Errorf("не удалось загрузить AWS-конфигурацию: %w", err)
 	}
 
-	return s3.New(sess), nil
+	s3Client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	return s3Client, nil
 }
 
-// downloadFileFromS3 скачивает один файл из S3.
-func downloadFileFromS3(ctx context.Context, downloader *s3manager.Downloader, bucket, key string) error {
+// downloadFileFromS3 downloads one file from S3 using AWS SDK v2.
+func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, bucket, key string) error {
 	filePath := filepath.Join(localBasePath, key)
 	fileDir := filepath.Dir(filePath)
 
@@ -62,16 +64,14 @@ func downloadFileFromS3(ctx context.Context, downloader *s3manager.Downloader, b
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			// Handle the error appropriately, e.g., log it
-			log.Printf("Error closing file: %v", err)
+			log.Printf("Ошибка закрытия файла: %v", err)
 		}
 	}()
 
-	_, err = downloader.DownloadWithContext(ctx, file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
-		})
+	_, err = downloader.Download(ctx, file, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
 		return fmt.Errorf("не удалось скачать файл %s: %w", key, err)
 	}
@@ -83,7 +83,7 @@ func main() {
 	ctx := context.Background()
 
 	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("../../configs/config.yaml")
+	cfg, err := cfg.LoadConfig("../../configs/config.yaml")
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
@@ -95,33 +95,35 @@ func main() {
 		SecretAccessKey: cfg.FileStorage.S3.SecretAccessKey,
 		Bucket:          cfg.FileStorage.S3.Bucket,
 	}
-	s3Client, err := NewS3Client(s3cfg)
+	s3Client, err := NewS3Client(ctx, s3cfg)
 	if err != nil {
 		log.Fatalf("Не удалось создать S3-клиент: %v", err)
 	}
 
-	// Используем Downloader для эффективного скачивания файлов
-	downloader := s3manager.NewDownloaderWithClient(s3Client)
+	// Используем Downloader из нового пакета manager
+	downloader := manager.NewDownloader(s3Client)
 
 	log.Println("Начинаю скачивание файлов из S3...")
 
-	// Получаем список всех объектов в бакете
-	err = s3Client.ListObjectsV2PagesWithContext(ctx, &s3.ListObjectsV2Input{
+	// Используем Paginator для итерации по объектам
+	p := s3.NewListObjectsV2Paginator(s3Client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s3cfg.Bucket),
-	}, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+	})
+
+	for p.HasMorePages() {
+		page, err := p.NextPage(ctx)
+		if err != nil {
+			log.Fatalf("Ошибка при получении страницы с файлами из S3: %v", err)
+		}
+
 		for _, object := range page.Contents {
-			key := aws.StringValue(object.Key)
+			key := aws.ToString(object.Key)
 			log.Printf("Скачиваю файл: %s", key)
 
 			if err := downloadFileFromS3(ctx, downloader, s3cfg.Bucket, key); err != nil {
 				log.Printf("Ошибка при скачивании файла %s: %v", key, err)
 			}
 		}
-		return true // Продолжаем итерацию
-	})
-
-	if err != nil {
-		log.Fatalf("Ошибка при получении списка файлов из S3: %v", err)
 	}
 
 	log.Println("Скачивание файлов завершено.")
