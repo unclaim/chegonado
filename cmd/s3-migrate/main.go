@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/unclaim/chegonado.git/internal/shared/config"
+	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
 const (
@@ -32,21 +32,29 @@ type S3Config struct {
 }
 
 // NewS3Client создает и возвращает новый S3-клиент.
-func NewS3Client(cfg *S3Config) (*s3.S3, error) {
-	awsConfig := &aws.Config{
-		Credentials:      credentials.NewStaticCredentials(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Endpoint:         aws.String(cfg.Endpoint),
-		Region:           aws.String("us-east-1"),
-		DisableSSL:       aws.Bool(false),
-		S3ForcePathStyle: aws.Bool(true),
-	}
+func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
+	// Создаем провайдер статических учетных данных.
+	creds := credentials.NewStaticCredentialsProvider(cfg.AccessKeyID, cfg.SecretAccessKey, "")
 
-	sess, err := session.NewSession(awsConfig)
+	// Загружаем конфигурацию, используя провайдер учетных данных.
+	awsConfig, err := config.LoadDefaultConfig(ctx,
+		config.WithCredentialsProvider(creds),
+		config.WithRegion("us-east-1"),
+		config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				URL:           cfg.Endpoint,
+				SigningRegion: "us-east-1",
+			}, nil
+		})),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("не удалось создать AWS сессию: %w", err)
+		return nil, fmt.Errorf("не удалось загрузить конфигурацию AWS: %w", err)
 	}
 
-	return s3.New(sess), nil
+	// Создаем новый S3-клиент.
+	return s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+	}), nil
 }
 
 // updateDBLink обновляет URL аватара в базе данных.
@@ -59,7 +67,7 @@ func updateDBLink(ctx context.Context, db *pgxpool.Pool, userID int64, newURL st
 }
 
 // uploadFileToS3 загружает файл в S3 и возвращает его полный URL.
-func uploadFileToS3(ctx context.Context, client *s3.S3, bucket, filePath string, file io.Reader) (string, error) {
+func uploadFileToS3(ctx context.Context, client *s3.Client, endpoint, bucket, filePath string, file io.Reader) (string, error) {
 	// Читаем содержимое файла в байтовый слайс
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(file)
@@ -69,7 +77,7 @@ func uploadFileToS3(ctx context.Context, client *s3.S3, bucket, filePath string,
 
 	// Создаем io.ReadSeeker из байтового слайса
 	reader := bytes.NewReader(buf.Bytes())
-	_, err = client.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(filePath),
 		Body:   reader,
@@ -77,11 +85,11 @@ func uploadFileToS3(ctx context.Context, client *s3.S3, bucket, filePath string,
 	if err != nil {
 		return "", fmt.Errorf("не удалось загрузить файл в S3: %w", err)
 	}
-	return fmt.Sprintf("%s/%s/%s", client.Endpoint, bucket, filePath), nil
+	return fmt.Sprintf("%s/%s/%s", endpoint, bucket, filePath), nil
 }
 
 // migrateUserAvatars переносит аватары одного пользователя.
-func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, s3Bucket, userFolder string) {
+func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.Client, s3Endpoint, s3Bucket, userFolder string) {
 	userIDStr := filepath.Base(userFolder)
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
@@ -110,7 +118,6 @@ func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, 
 		}
 		defer func() {
 			if err := file.Close(); err != nil {
-				// Handle the error appropriately, e.g., log it
 				log.Printf("Error closing file: %v", err)
 			}
 		}()
@@ -127,7 +134,7 @@ func migrateUserAvatars(ctx context.Context, db *pgxpool.Pool, s3Client *s3.S3, 
 		// Заменяем разделители пути, чтобы они соответствовали формату URL.
 		s3FilePath = strings.ReplaceAll(s3FilePath, "\\", "/")
 
-		s3URL, err := uploadFileToS3(ctx, s3Client, s3Bucket, s3FilePath, tee)
+		s3URL, err := uploadFileToS3(ctx, s3Client, s3Endpoint, s3Bucket, s3FilePath, tee)
 		if err != nil {
 			return fmt.Errorf("ошибка загрузки файла в S3: %w", err)
 		}
@@ -150,7 +157,7 @@ func main() {
 	ctx := context.Background()
 
 	// Загружаем конфигурацию
-	cfg, err := config.LoadConfig("../../configs/config.yaml")
+	cfg, err := cfg.LoadConfig("../../configs/config.yaml")
 	if err != nil {
 		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
 	}
@@ -174,7 +181,7 @@ func main() {
 		SecretAccessKey: cfg.FileStorage.S3.SecretAccessKey,
 		Bucket:          cfg.FileStorage.S3.Bucket,
 	}
-	s3Client, err := NewS3Client(s3cfg)
+	s3Client, err := NewS3Client(ctx, s3cfg)
 	if err != nil {
 		log.Fatalf("Не удалось создать S3-клиент: %v", err)
 	}
@@ -188,7 +195,7 @@ func main() {
 		}
 		if info.IsDir() && filepath.Base(path) != "users" {
 			// Это папка пользователя, запускаем миграцию для неё
-			migrateUserAvatars(ctx, dbpool, s3Client, s3cfg.Bucket, path)
+			migrateUserAvatars(ctx, dbpool, s3Client, s3cfg.Endpoint, s3cfg.Bucket, path)
 			return filepath.SkipDir // Пропускаем поддиректории, так как мы их обработали вручную
 		}
 		return nil
