@@ -38,8 +38,8 @@ func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
 		config.WithCredentialsProvider(creds),
 		config.WithRegion("us-east-1"), // Регион можно изменить, если нужно
 		// Использование актуального WithEndpointResolver.
-		// Теперь функция-резолвер принимает только регион и возвращает Endpoint.
-		config.WithEndpointResolver(aws.EndpointResolverFunc(func(region string, options ...interface{}) (aws.Endpoint, error) {
+		// Теперь функция-резолвер принимает service и region.
+		config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				URL:           cfg.Endpoint,
 				SigningRegion: "us-east-1",
@@ -62,6 +62,7 @@ func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, buc
 	filePath := filepath.Join(localBasePath, key)
 	fileDir := filepath.Dir(filePath)
 
+	// Создаём все необходимые директории. os.MkdirAll безопасен, если директории уже существуют.
 	if err := os.MkdirAll(fileDir, 0755); err != nil {
 		return fmt.Errorf("ошибка создания директории %s: %w", fileDir, err)
 	}
@@ -139,7 +140,7 @@ func main() {
 
 			key := *object.Key
 
-			// Пропускаем "директории".
+			// Пропускаем "директории" (объекты, заканчивающиеся на '/')
 			if object.Size != nil && *object.Size == 0 && key[len(key)-1] == '/' {
 				log.Printf("Пропускаю 'директорию': %s", key)
 				continue
@@ -156,4 +157,9 @@ func main() {
 
 	log.Println("Скачивание файлов завершено.")
 }
-cannot convert (func(region string, options ...interface{}) (aws.Endpoint, error) literal) (value of type func(region string, options ...interface{}) (aws.Endpoint, error)) to type aws.EndpointResolverFunc
+PS D:\Y\chegonado> golangci-lint run ./...
+cmd\s3-download\main.go:42:3: SA1019: config.WithEndpointResolver is deprecated: The global endpoint resolution interface is deprecated. The API for endpoint resolution is now unique to each service and is set via the EndpointResolverV2 field on service client options. Use of WithEndpointResolver or WithEndpointResolverWithOptions will prevent you from using any endpoint-related service features released after the introduction of EndpointResolverV2. You may also encounter broken or unexpected behavior when using the old global interface with services that use many endpoint-related customizations such as S3. (staticcheck)
+                config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+                ^
+cmd\s3-download\main.go:43:11: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
+                        return aws.Endpoint{
