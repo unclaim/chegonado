@@ -12,12 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+
+	// Убедись, что путь к твоему пакету с конфигом правильный.
+	// Я оставил его, как в твоем коде.
 	cfg "github.com/unclaim/chegonado.git/internal/shared/config"
 )
 
-const (
-	localBasePath = "uploads" // Корневая папка для сохранения файлов
-)
+// localBasePath — это корневая папка, куда будут скачиваться файлы.
+const localBasePath = "uploads"
 
 // S3Config содержит параметры для подключения к S3.
 type S3Config struct {
@@ -35,8 +37,8 @@ func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
 	// Загружаем конфигурацию, используя провайдер учетных данных.
 	awsConfig, err := config.LoadDefaultConfig(ctx,
 		config.WithCredentialsProvider(creds),
-		config.WithRegion("us-east-1"),
-		config.WithEndpointResolver(aws.EndpointResolverFunc(func(service, region string) (aws.Endpoint, error) {
+		config.WithRegion("us-east-1"), // Регион можно изменить, если нужно
+		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				URL:           cfg.Endpoint,
 				SigningRegion: "us-east-1",
@@ -47,21 +49,19 @@ func NewS3Client(ctx context.Context, cfg *S3Config) (*s3.Client, error) {
 		return nil, fmt.Errorf("не удалось загрузить конфигурацию AWS: %w", err)
 	}
 
-	// Создаем новый S3-клиент.
+	// Создаем новый S3-клиент с настройкой стиля пути.
 	return s3.NewFromConfig(awsConfig, func(o *s3.Options) {
 		o.UsePathStyle = true
 	}), nil
 }
 
-// downloadFileFromS3 скачивает один файл из S3.
+// downloadFileFromS3 скачивает один файл из S3 по его ключу.
 func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, bucket, key string) error {
 	filePath := filepath.Join(localBasePath, key)
 	fileDir := filepath.Dir(filePath)
 
-	if _, err := os.Stat(fileDir); os.IsNotExist(err) {
-		if mkdirErr := os.MkdirAll(fileDir, 0755); mkdirErr != nil {
-			return fmt.Errorf("ошибка создания директории %s: %w", fileDir, mkdirErr)
-		}
+	if err := os.MkdirAll(fileDir, 0755); err != nil {
+		return fmt.Errorf("ошибка создания директории %s: %w", fileDir, err)
 	}
 
 	file, err := os.Create(filePath)
@@ -69,53 +69,52 @@ func downloadFileFromS3(ctx context.Context, downloader *manager.Downloader, buc
 		return fmt.Errorf("ошибка создания файла %s: %w", filePath, err)
 	}
 	defer func() {
-		if err := file.Close(); err != nil {
-			log.Printf("Error closing file: %v", err)
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("Ошибка при закрытии файла %s: %v", filePath, closeErr)
 		}
 	}()
 
-	// В V2 Download принимает контекст, writer, и input-структуру.
-	// io.Writer - это `file`, а `input-структура` - `s3.GetObjectInput`.
-	_, err = downloader.Download(ctx, file,
-		&s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
-		})
+	// Скачиваем файл с помощью Downloader.
+	_, err = downloader.Download(ctx, file, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
 		return fmt.Errorf("не удалось скачать файл %s: %w", key, err)
 	}
 
+	log.Printf("Файл скачан: %s", filePath)
 	return nil
 }
 
 func main() {
 	ctx := context.Background()
 
-	// Загружаем конфигурацию
-	cfg, err := cfg.LoadConfig("../../configs/config.yaml")
+	// Загрузка конфигурации из YAML-файла.
+	configPath := "../../configs/config.yaml"
+	appCfg, err := cfg.LoadConfig(configPath)
 	if err != nil {
-		log.Fatalf("Ошибка загрузки конфигурации: %v", err)
+		log.Fatalf("Ошибка загрузки конфигурации из %s: %v", configPath, err)
 	}
 
-	// Подключение к S3
+	// Подготовка S3-конфигурации из загруженных данных.
 	s3cfg := &S3Config{
-		Endpoint:        cfg.FileStorage.S3.Endpoint,
-		AccessKeyID:     cfg.FileStorage.S3.AccessKeyID,
-		SecretAccessKey: cfg.FileStorage.S3.SecretAccessKey,
-		Bucket:          cfg.FileStorage.S3.Bucket,
+		Endpoint:        appCfg.FileStorage.S3.Endpoint,
+		AccessKeyID:     appCfg.FileStorage.S3.AccessKeyID,
+		SecretAccessKey: appCfg.FileStorage.S3.SecretAccessKey,
+		Bucket:          appCfg.FileStorage.S3.Bucket,
 	}
+
+	// Создание S3-клиента.
 	s3Client, err := NewS3Client(ctx, s3cfg)
 	if err != nil {
 		log.Fatalf("Не удалось создать S3-клиент: %v", err)
 	}
 
-	// Используем Downloader из нового пакета "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	downloader := manager.NewDownloader(s3Client)
-
 	log.Println("Начинаю скачивание файлов из S3...")
 
-	// Получаем список всех объектов в бакете.
-	// Метод ListObjectsV2PagesWithContext заменен на `s3Client.ListObjectsV2`, который возвращает итератор.
+	// Используем пагинатор для итерации по всем объектам в бакете.
 	paginator := s3.NewListObjectsV2Paginator(s3Client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s3cfg.Bucket),
 	})
@@ -126,11 +125,28 @@ func main() {
 			log.Fatalf("Ошибка при получении страницы списка файлов: %v", err)
 		}
 
+		if page == nil {
+			continue // Пропускаем пустые страницы, если таковые есть
+		}
+
 		for _, object := range page.Contents {
-			key := aws.ToString(object.Key)
+			// Проверяем, что ключ объекта существует.
+			if object.Key == nil {
+				continue
+			}
+
+			key := *object.Key
+
+			// Пропускаем "директории".
+			if object.Size != nil && *object.Size == 0 && key[len(key)-1] == '/' {
+				log.Printf("Пропускаю 'директорию': %s", key)
+				continue
+			}
+
 			log.Printf("Скачиваю файл: %s", key)
 
 			if err := downloadFileFromS3(ctx, downloader, s3cfg.Bucket, key); err != nil {
+				// Логируем ошибку, но продолжаем скачивать остальные файлы.
 				log.Printf("Ошибка при скачивании файла %s: %v", key, err)
 			}
 		}
@@ -138,3 +154,9 @@ func main() {
 
 	log.Println("Скачивание файлов завершено.")
 }
+PS D:\Y\chegonado> golangci-lint run ./...
+cmd\s3-download\main.go:41:3: SA1019: config.WithEndpointResolverWithOptions is deprecated: The global endpoint resolution interface is deprecated. See deprecation docs on [WithEndpointResolver]. (staticcheck)
+                config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+                ^
+cmd\s3-download\main.go:42:11: SA1019: aws.Endpoint is deprecated: This structure was used with the global [EndpointResolver] interface, which has been deprecated in favor of service-specific endpoint resolution. See the deprecation docs on that interface for more information. (staticcheck)
+                        return aws.Endpoint{
